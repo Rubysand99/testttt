@@ -1,0 +1,30 @@
+[
+    {
+        "device_id": "abcd119115533b5a",
+        "username": "quan",
+        "password": "123",
+        "expirydate": "31-12-2025",
+        "Allowoffline": true
+    },
+    {
+        "device_id": "a75cded6e3c48c2f",
+        "username": "kien",
+        "password": "1",
+        "expirydate": "01-10-2025",
+        "Allowoffline": false
+    },
+    {
+        "device_id": "fdb42024f3d66d42",
+        "username": "BuiTuyenAdmin",
+        "password": "19102009",
+        "expirydate": "15-06-2099",
+        "Allowoffline": false
+    },
+    {
+        "device_id": "9833f9ca3e12b37c",
+        "username": "lam",
+        "password": "vipfgdsggye8yfv",
+        "expirydate": "15-06-2099",
+        "Allowoffline": false
+    }
+]
