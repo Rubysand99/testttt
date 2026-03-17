@@ -1,111 +1,90 @@
 import discord
-from discord.ext import commands
-from discord import app_commands
-import json
+import requests
 import os
-import aiohttp
 
 intents = discord.Intents.default()
 intents.message_content = True
 
-PREFIX_FILE = "prefixes.json"
+client = discord.Client(intents=intents)
 
-# ======================
-# LOAD / SAVE PREFIX
-# ======================
-def load_prefixes():
-    if not os.path.exists(PREFIX_FILE):
-        return {}
-    with open(PREFIX_FILE, "r") as f:
-        return json.load(f)
+TOKEN = os.getenv("TOKEN")
 
-def save_prefixes(data):
-    with open(PREFIX_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+# ✅ Kênh được phép dùng bot
+ALLOWED_CHANNEL_ID = 1408419176149811252
 
-prefixes = load_prefixes()
+# Lưu trạng thái NSFW
+nsfw_enabled = {}
 
-def get_prefix(bot, message):
-    return prefixes.get(str(message.guild.id), "!")
+# ===== LẤY ẢNH =====
+def get_image(endpoint):
+    url = f"https://api.waifu.pics/{endpoint}"
+    res = requests.get(url).json()
+    return res["url"]
 
-bot = commands.Bot(command_prefix=get_prefix, intents=intents)
-
-# ======================
-# READY
-# ======================
-@bot.event
+# ===== READY =====
+@client.event
 async def on_ready():
-    print(f"Đã đăng nhập: {bot.user}")
-    try:
-        synced = await bot.tree.sync()
-        print(f"Đã sync {len(synced)} slash commands")
-    except Exception as e:
-        print(e)
+    print(f"✅ Bot online: {client.user}")
 
-# ======================
-# PREFIX COMMAND
-# ======================
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def prefix(ctx, new_prefix):
-    prefixes[str(ctx.guild.id)] = new_prefix
-    save_prefixes(prefixes)
-    await ctx.send(f"Đã đổi prefix thành: `{new_prefix}`")
+# ===== XỬ LÝ TIN NHẮN =====
+@client.event
+async def on_message(message):
+    if message.author.bot:
+        return
 
-@prefix.error
-async def prefix_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("Bạn cần quyền admin!")
+    # ❌ Không đúng kênh → bỏ qua
+    if message.channel.id != ALLOWED_CHANNEL_ID:
+        return
 
-# ======================
-# PING
-# ======================
-@bot.command()
-async def ping(ctx):
-    await ctx.send("Pong!")
+    msg = message.content.lower()
 
-@bot.tree.command(name="ping", description="Check bot")
-async def slash_ping(interaction: discord.Interaction):
-    await interaction.response.send_message("Pong!")
+    # ===== NSFW =====
+    if msg == "nsfw on":
+        nsfw_enabled[message.guild.id] = True
+        await message.channel.send("🔞 NSFW: ON")
 
-# ======================
-# WAIFU / NEKO API
-# ======================
-async def get_image(endpoint):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://api.waifu.pics/sfw/{endpoint}") as resp:
-            data = await resp.json()
-            return data["url"]
+    elif msg == "nsfw off":
+        nsfw_enabled[message.guild.id] = False
+        await message.channel.send("🔞 NSFW: OFF")
 
-# PREFIX COMMANDS
-@bot.command()
-async def waifu(ctx):
-    url = await get_image("waifu")
-    embed = discord.Embed(title="Waifu 🥰")
-    embed.set_image(url=url)
-    await ctx.send(embed=embed)
+    # ===== WAIFU =====
+    elif msg == "waifu":
+        img = get_image("sfw/waifu")
+        embed = discord.Embed(title="🌸 Waifu")
+        embed.set_image(url=img)
+        await message.channel.send(embed=embed)
 
-@bot.command()
-async def neko(ctx):
-    url = await get_image("neko")
-    embed = discord.Embed(title="Neko 🐱")
-    embed.set_image(url=url)
-    await ctx.send(embed=embed)
+    # ===== NEKO =====
+    elif msg == "neko":
+        img = get_image("sfw/neko")
+        embed = discord.Embed(title="🐱 Neko")
+        embed.set_image(url=img)
+        await message.channel.send(embed=embed)
 
-# SLASH COMMANDS
-@bot.tree.command(name="waifu", description="Random waifu")
-async def slash_waifu(interaction: discord.Interaction):
-    url = await get_image("waifu")
-    embed = discord.Embed(title="Waifu 🥰")
-    embed.set_image(url=url)
-    await interaction.response.send_message(embed=embed)
+    # ===== TRAP =====
+    elif msg == "trap":
+        img = get_image("sfw/trap")
+        embed = discord.Embed(title="🎭 Trap")
+        embed.set_image(url=img)
+        await message.channel.send(embed=embed)
 
-@bot.tree.command(name="neko", description="Random neko")
-async def slash_neko(interaction: discord.Interaction):
-    url = await get_image("neko")
-    embed = discord.Embed(title="Neko 🐱")
-    embed.set_image(url=url)
-    await interaction.response.send_message(embed=embed)
+    # ===== WAIFU 18+ =====
+    elif msg == "waifu18":
+        if not nsfw_enabled.get(message.guild.id, False):
+            await message.channel.send("❌ NSFW chưa bật!")
+            return
 
-# ======================
-bot.run(os.getenv("TOKEN"))
+        if not message.channel.is_nsfw():
+            await message.channel.send("⚠️ Phải dùng trong kênh NSFW!")
+            return
+
+        img = get_image("nsfw/waifu")
+        embed = discord.Embed(title="🔞 Waifu 18+")
+        embed.set_image(url=img)
+        await message.channel.send(embed=embed)
+
+# ===== RUN =====
+if TOKEN is None:
+    print("❌ Không tìm thấy TOKEN!")
+else:
+    client.run(TOKEN)
