@@ -1,94 +1,240 @@
-import discord
-import requests
-import os
-import asyncio
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TuyTam Store | DonutSMP</title>
 
-intents = discord.Intents.default()
-intents.message_content = True
+<style>
+body{
+    margin:0;
+    font-family:Arial;
+    background:#0f0f0f;
+    color:white;
+    text-align:center;
+}
 
-client = discord.Client(intents=intents)
+header{
+    background:#ff9900;
+    padding:20px;
+    font-size:28px;
+    font-weight:bold;
+}
 
-TOKEN = os.getenv("TOKEN")
+.container{
+    padding:30px;
+}
 
-ALLOWED_CHANNEL_ID = 1408419176149811252
+.card{
+    background:#1e1e1e;
+    padding:25px;
+    border-radius:10px;
+    max-width:800px;
+    margin:auto;
+}
 
-# trạng thái auto gửi ảnh
-auto_send = False
+button{
+    background:#ff9900;
+    border:none;
+    padding:12px 20px;
+    font-size:16px;
+    border-radius:8px;
+    cursor:pointer;
+}
 
-# ===== LẤY ẢNH =====
-def get_image():
-    url = "https://api.waifu.pics/nsfw/waifu"
-    res = requests.get(url).json()
-    return res["url"]
+button:hover{
+    background:#ff7700;
+}
 
-# ===== READY =====
-@client.event
-async def on_ready():
-    print(f"✅ Bot online: {client.user}")
+/* POPUP */
+#popup{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,0.8);
+display:flex;
+justify-content:center;
+align-items:center;
+z-index:9999;
+opacity:0;
+animation:fadeIn 0.5s forwards;
+}
 
-# ===== AUTO TASK =====
-async def auto_image(channel):
-    global auto_send
-    while auto_send:
-        try:
-            img = get_image()
-            embed = discord.Embed(title="🔞 Auto Waifu")
-            embed.set_image(url=img)
-            await channel.send(embed=embed)
-            await asyncio.sleep(3)  # 👉 delay (đừng để 1s)
-        except Exception as e:
-            print(e)
-            break
+#popup-content{
+background:#1e1e1e;
+padding:30px;
+border-radius:10px;
+text-align:center;
+max-width:400px;
+transform:scale(0.7);
+animation:zoomIn 0.4s forwards;
+}
 
-# ===== MESSAGE =====
-@client.event
-async def on_message(message):
-    global auto_send
+@keyframes fadeIn{to{opacity:1;}}
+@keyframes zoomIn{to{transform:scale(1);}}
 
-    if message.author.bot:
-        return
+.fadeOut{
+animation:fadeOut 0.5s forwards;
+}
+@keyframes fadeOut{to{opacity:0;}}
 
-    if message.channel.id != ALLOWED_CHANNEL_ID:
-        return
+/* neon credit */
+.credit{
+margin-top:15px;
+font-size:13px;
+color:#00fff7;
+font-weight:bold;
+text-shadow:
+0 0 5px #00fff7,
+0 0 10px #00fff7,
+0 0 20px #00fff7,
+0 0 40px #00fff7;
+animation:neonGlow 1.5s infinite alternate;
+}
 
-    msg = message.content.lower()
+@keyframes neonGlow{
+from{
+text-shadow:0 0 5px #00fff7;
+}
+to{
+text-shadow:
+0 0 10px #00fff7,
+0 0 20px #00fff7,
+0 0 40px #00fff7;
+}
+}
 
-    # ===== LỆNH ẢNH =====
-    if msg == "waifu":
-        img = get_image()
-        embed = discord.Embed(title="🔞 Waifu")
-        embed.set_image(url=img)
-        await message.channel.send(embed=embed)
+ul{
+text-align:left;
+max-width:350px;
+margin:auto;
+}
 
-    elif msg == "neko":
-        img = get_image()
-        embed = discord.Embed(title="🔞 Neko")
-        embed.set_image(url=img)
-        await message.channel.send(embed=embed)
+.ad{
+margin:30px 0;
+padding:20px;
+background:#222;
+border-radius:10px;
+}
+</style>
 
-    elif msg == "trap":
-        img = get_image()
-        embed = discord.Embed(title="🔞 Trap")
-        embed.set_image(url=img)
-        await message.channel.send(embed=embed)
+</head>
 
-    # ===== AUTO ON =====
-    elif msg == "auto":
-        if auto_send:
-            await message.channel.send("⚠️ Đang chạy rồi!")
-            return
+<body>
 
-        auto_send = True
-        await message.channel.send("▶️ Bắt đầu auto gửi ảnh...")
-        client.loop.create_task(auto_image(message.channel))
+<header>
+✨ TUYTAM STORE ✨
+</header>
 
-    # ===== AUTO OFF =====
-    elif msg == "stop":
-        auto_send = False
-        await message.channel.send("⏹️ Đã dừng auto")
+<div class="container">
 
-# ===== RUN =====
-if TOKEN is None:
-    print("❌ Không tìm thấy TOKEN!")
-else:
-    client.run(TOKEN)
+<div class="card">
+
+<h2>Shop uy tín hàng đầu trong server DONUTSMP</h2>
+
+<p>Chuyên mua bán – trao đổi nhanh chóng, an toàn.</p>
+
+<h3>🛒 Mặt hàng hiện có:</h3>
+
+<ul>
+<li>
+🦴 <b>Spawner Skeleton</b><br>
+<span style="color:#aaa;">Spawner xương, farm mob nhanh</span><br>
+<span style="color:#00ff99;">Giá: 4.500đ</span><br>
+<span style="color:#00bfff;">Đã bán: <span id="sold1"></span></span>
+</li>
+
+<br>
+
+<li>
+💰 <b>Money</b><br>
+<span style="color:#aaa;">Nhận tiền nhanh trong server</span><br>
+<span style="color:#00ff99;">Giá: 900đ / 1M</span><br>
+<span style="color:#00bfff;">Đã bán: <span id="sold2"></span></span>
+</li>
+</ul>
+
+<br>
+
+<a href="redirect.html">
+<button>VÀO DISCORD GIAO DỊCH</button>
+</a>
+
+</div>
+
+<!-- QUẢNG CÁO -->
+<div class="ad">
+<h3>Quảng cáo</h3>
+
+<script src="https://pl28928436.effectivegatecpm.com/e0/ce/e7/e0cee741254541fa379b3b6f55d4be7c.js"></script>
+
+</div>
+
+</div>
+
+<!-- POPUP -->
+<div id="popup">
+<div id="popup-content">
+
+<h2>✨ TuyTam Store ✨</h2>
+
+<p>🔥 Dịch vụ:</p>
+
+<p>🦴 Spawner Skeleton</p>
+<p>💰 Money</p>
+
+<br>
+
+<a href="https://discord.gg/kYmPCKJ3X">
+<button>Vào Discord</button>
+</a>
+
+<br>
+
+<button onclick="showDonate()">💚 Donate</button>
+
+<div id="donateBox" style="display:none; margin-top:15px;">
+<p>💖 Ủng hộ shop:</p>
+<img src="zalopay.png" width="180" style="border-radius:10px;">
+<p style="font-size:12px;color:#aaa;">Quét QR ZaloPay</p>
+</div>
+
+<button onclick="closePopup()">Đóng</button>
+
+<div class="credit">Code by Rubynek209</div>
+
+</div>
+</div>
+
+<script>
+// popup
+function closePopup(){
+let popup = document.getElementById("popup");
+popup.classList.add("fadeOut");
+setTimeout(()=>{popup.style.display="none";},500);
+}
+
+setTimeout(closePopup,5000);
+
+// donate
+function showDonate(){
+let box = document.getElementById("donateBox");
+box.style.display = box.style.display==="none"?"block":"none";
+}
+
+// fake sold
+let sold1 = 27;
+let sold2 = 142;
+
+sold1 += Math.floor(Math.random()*2);
+sold2 += Math.floor(Math.random()*5);
+
+document.getElementById("sold1").innerText = sold1;
+document.getElementById("sold2").innerText = sold2;
+
+</script>
+
+</body>
+</html>
