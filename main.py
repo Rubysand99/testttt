@@ -1,11 +1,11 @@
 import discord
 from discord.ext import commands
 import requests
-
+import os
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = os.getenv("TOKEN")
 
 # Lưu trạng thái NSFW (theo server)
 nsfw_enabled = {}
