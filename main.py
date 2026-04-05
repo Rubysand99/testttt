@@ -50,7 +50,7 @@ async def get_image():
 # ===== GIF (ONLY GIF) =====
 async def get_gif():
     for _ in range(3):
-        data = await fetch_json("https://nekos.life/api/v2/img/lewd")
+        data = await fetch_json("https://nekos.life/api/v2/img/Random_hentai_gif")
 
         if data and "url" in data:
             url = data["url"]
