@@ -13,7 +13,7 @@ client = discord.Client(intents=intents)
 TOKEN = os.getenv("TOKEN")
 ALLOWED_CHANNEL_ID = 1408419176149811252
 
-DELAY = 5
+DELAY = 1.5
 COOLDOWN = 3
 
 auto_mode = None  # img / gif / mix
