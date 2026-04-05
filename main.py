@@ -34,30 +34,26 @@ async def fetch_json(url):
     except:
         return None
 
-# ===== IMAGE (ONLY IMAGE) =====
+# ===== IMAGE =====
 async def get_image():
-    for _ in range(3):  # thử lại tối đa 3 lần
+    for _ in range(3):
         cat = random.choice(WAIFU_CATEGORIES)
         data = await fetch_json(f"https://api.waifu.pics/nsfw/{cat}")
 
         if data and "url" in data:
-            url = data["url"]
-            if url.endswith((".jpg", ".png", ".jpeg")):
-                return url
+            return data["url"], "waifu.pics"
 
-    return None
+    return None, None
 
-# ===== GIF (ONLY GIF) =====
+# ===== GIF (FIX CHUẨN) =====
 async def get_gif():
     for _ in range(3):
         data = await fetch_json("https://nekos.life/api/v2/img/Random_hentai_gif")
 
         if data and "url" in data:
-            url = data["url"]
-            if url.endswith(".gif"):
-                return url
+            return data["url"], "nekos.life"
 
-    return None
+    return None, None
 
 # ===== AUTO TASK =====
 async def auto_task(channel):
@@ -68,19 +64,31 @@ async def auto_task(channel):
             break
 
         try:
+            # ===== CHỌN MODE =====
             if auto_mode == "img":
-                url = await get_image()
+                url, source = await get_image()
 
             elif auto_mode == "gif":
-                url = await get_gif()
+                url, source = await get_gif()
 
+            elif auto_mode == "mix":
+                if random.choice([True, False]):
+                    url, source = await get_image()
+                else:
+                    url, source = await get_gif()
             else:
-                url = None
+                url, source = None, None
 
             if not url:
+                await asyncio.sleep(1)
                 continue
 
-            embed = discord.Embed(title=f"🔞 {auto_mode.upper()}")
+            # ===== EMBED =====
+            embed = discord.Embed(
+                title=f"🔞 {auto_mode.upper()}",
+                description=f"📺 Source: {source if source else 'Unknown Anime'}"
+            )
+
             embed.set_image(url=url)
 
             await channel.send(embed=embed)
@@ -123,6 +131,7 @@ async def on_message(message):
         embed = discord.Embed(title="📜 Commands")
         embed.add_field(name="auto img", value="Spam ảnh", inline=False)
         embed.add_field(name="auto gif", value="Spam gif", inline=False)
+        embed.add_field(name="auto mix", value="Spam ảnh + gif", inline=False)
         embed.add_field(name="stop", value="Dừng", inline=False)
         embed.add_field(name="ping", value="Check ping", inline=False)
 
@@ -140,7 +149,7 @@ async def on_message(message):
             return
 
         auto_mode = "img"
-        await message.channel.send("▶️ Spam ảnh ON")
+        await message.channel.send("▶️ Auto ảnh ON")
         client.loop.create_task(auto_task(message.channel))
 
     # ===== AUTO GIF =====
@@ -150,7 +159,17 @@ async def on_message(message):
             return
 
         auto_mode = "gif"
-        await message.channel.send("▶️ Spam gif ON")
+        await message.channel.send("▶️ Auto gif ON")
+        client.loop.create_task(auto_task(message.channel))
+
+    # ===== AUTO MIX =====
+    elif msg == "auto mix":
+        if auto_mode:
+            await message.channel.send("⚠️ Đang chạy rồi!")
+            return
+
+        auto_mode = "mix"
+        await message.channel.send("▶️ Auto mix ON")
         client.loop.create_task(auto_task(message.channel))
 
     # ===== STOP =====
