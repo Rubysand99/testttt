@@ -13,9 +13,7 @@ client = discord.Client(intents=intents)
 TOKEN = os.getenv("TOKEN")
 ALLOWED_CHANNEL_ID = 1408419176149811252
 
-# ===== CONFIG =====
-BURST_COUNT = 4      # số lần spam nhanh mỗi đợt
-DELAY = 3            # nghỉ giữa các đợt
+DELAY = 1.2
 COOLDOWN = 2
 
 auto_mode = None
@@ -25,59 +23,73 @@ WAIFU_CATEGORIES = [
     "waifu", "neko", "trap", "blowjob", "boobs", "hentai"
 ]
 
-NEKOS_API = "https://nekos.life/api/v2/img/lewd"
-
 # ===== FETCH =====
 async def fetch_json(url):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as res:
-            return await res.json()
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=10) as res:
+                if res.status != 200:
+                    return None
+                return await res.json()
+    except:
+        return None
 
-# ===== IMAGE =====
+# ===== IMAGE (ONLY IMAGE) =====
 async def get_image():
-    cat = random.choice(WAIFU_CATEGORIES)
-    data = await fetch_json(f"https://api.waifu.pics/nsfw/{cat}")
-    return data["url"]
+    for _ in range(3):  # thử lại tối đa 3 lần
+        cat = random.choice(WAIFU_CATEGORIES)
+        data = await fetch_json(f"https://api.waifu.pics/nsfw/{cat}")
 
-# ===== GIF =====
+        if data and "url" in data:
+            url = data["url"]
+            if url.endswith((".jpg", ".png", ".jpeg")):
+                return url
+
+    return None
+
+# ===== GIF (ONLY GIF) =====
 async def get_gif():
-    data = await fetch_json(NEKOS_API)
-    return data["url"]
+    for _ in range(3):
+        data = await fetch_json("https://nekos.life/api/v2/img/lewd")
+
+        if data and "url" in data:
+            url = data["url"]
+            if url.endswith(".gif"):
+                return url
+
+    return None
 
 # ===== AUTO TASK =====
 async def auto_task(channel):
     global auto_mode
 
-    while auto_mode:
+    while True:
+        if not auto_mode:
+            break
+
         try:
-            # ===== BURST SPAM =====
-            for _ in range(BURST_COUNT):
+            if auto_mode == "img":
+                url = await get_image()
 
-                embed = discord.Embed(title=f"🔞 {auto_mode.upper()} SPAM")
+            elif auto_mode == "gif":
+                url = await get_gif()
 
-                if auto_mode == "img":
-                    url = await get_image()
+            else:
+                url = None
 
-                elif auto_mode == "gif":
-                    url = await get_gif()
+            if not url:
+                continue
 
-                elif auto_mode == "mix":
-                    if random.choice([True, False]):
-                        url = await get_image()
-                    else:
-                        url = await get_gif()
+            embed = discord.Embed(title=f"🔞 {auto_mode.upper()}")
+            embed.set_image(url=url)
 
-                embed.set_image(url=url)
-                await channel.send(embed=embed)
+            await channel.send(embed=embed)
 
-                await asyncio.sleep(0.8)  # delay nhỏ giữa từng tin
-
-            # ===== nghỉ =====
             await asyncio.sleep(DELAY)
 
         except Exception as e:
             print("Auto error:", e)
-            await asyncio.sleep(5)
+            await asyncio.sleep(2)
 
 # ===== READY =====
 @client.event
@@ -98,7 +110,6 @@ async def on_message(message):
     user_id = message.author.id
     now = time.time()
 
-    # ===== COOLDOWN =====
     if user_id in user_cooldowns:
         if now - user_cooldowns[user_id] < COOLDOWN:
             return
@@ -109,54 +120,43 @@ async def on_message(message):
 
     # ===== HELP =====
     if msg == "help":
-        embed = discord.Embed(title="📜 Commands", color=0x00ffcc)
+        embed = discord.Embed(title="📜 Commands")
         embed.add_field(name="auto img", value="Spam ảnh", inline=False)
         embed.add_field(name="auto gif", value="Spam gif", inline=False)
-        embed.add_field(name="auto mix", value="Spam random", inline=False)
-        embed.add_field(name="stop", value="Dừng auto", inline=False)
-        embed.add_field(name="ping", value="Check độ trễ bot", inline=False)
+        embed.add_field(name="stop", value="Dừng", inline=False)
+        embed.add_field(name="ping", value="Check ping", inline=False)
 
         await message.channel.send(embed=embed)
 
     # ===== PING =====
     elif msg == "ping":
         latency = round(client.latency * 1000)
-        await message.channel.send(f"🏓 Pong: {latency}ms")
+        await message.channel.send(f"🏓 {latency}ms")
 
     # ===== AUTO IMG =====
     elif msg == "auto img":
         if auto_mode:
-            await message.channel.send("⚠️ Auto đang chạy rồi!")
+            await message.channel.send("⚠️ Đang chạy rồi!")
             return
 
         auto_mode = "img"
-        await message.channel.send("▶️ Spam ảnh đã bật")
+        await message.channel.send("▶️ Spam ảnh ON")
         client.loop.create_task(auto_task(message.channel))
 
     # ===== AUTO GIF =====
     elif msg == "auto gif":
         if auto_mode:
-            await message.channel.send("⚠️ Auto đang chạy rồi!")
+            await message.channel.send("⚠️ Đang chạy rồi!")
             return
 
         auto_mode = "gif"
-        await message.channel.send("▶️ Spam gif đã bật")
-        client.loop.create_task(auto_task(message.channel))
-
-    # ===== AUTO MIX =====
-    elif msg == "auto mix":
-        if auto_mode:
-            await message.channel.send("⚠️ Auto đang chạy rồi!")
-            return
-
-        auto_mode = "mix"
-        await message.channel.send("▶️ Spam mix đã bật")
+        await message.channel.send("▶️ Spam gif ON")
         client.loop.create_task(auto_task(message.channel))
 
     # ===== STOP =====
     elif msg == "stop":
         auto_mode = None
-        await message.channel.send("⏹️ Đã dừng spam")
+        await message.channel.send("⏹️ STOP")
 
 # ===== RUN =====
 if TOKEN is None:
