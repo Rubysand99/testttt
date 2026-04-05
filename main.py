@@ -13,66 +13,63 @@ client = discord.Client(intents=intents)
 TOKEN = os.getenv("TOKEN")
 ALLOWED_CHANNEL_ID = 1408419176149811252
 
-# ===== CONFIG =====
-DELAY = 5  # thời gian gửi auto (giây)
-COOLDOWN = 3  # cooldown user (giây)
+DELAY = 5
+COOLDOWN = 3
 
-auto_send = False
+auto_mode = None  # img / gif / mix
 user_cooldowns = {}
 
-# ===== API LIST =====
 WAIFU_CATEGORIES = [
     "waifu", "neko", "trap", "blowjob", "boobs", "hentai"
 ]
 
 NEKOS_API = "https://nekos.life/api/v2/img/lewd"
 
-# fake video (bạn có thể thay link thật)
-VIDEOS = [
-    "https://files.catbox.moe/5v7g3h.mp4",
-    "https://files.catbox.moe/abc123.mp4"
-]
-
-# ===== GET CONTENT =====
+# ===== FETCH =====
 async def fetch_json(url):
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as res:
             return await res.json()
 
-async def get_content():
-    choice = random.choice(["image", "gif", "video"])
+# ===== IMAGE =====
+async def get_image():
+    cat = random.choice(WAIFU_CATEGORIES)
+    data = await fetch_json(f"https://api.waifu.pics/nsfw/{cat}")
+    return data["url"]
 
-    # ===== IMAGE (waifu.pics) =====
-    if choice == "image":
-        cat = random.choice(WAIFU_CATEGORIES)
-        data = await fetch_json(f"https://api.waifu.pics/nsfw/{cat}")
-        return data["url"]
-
-    # ===== GIF (nekos.life) =====
-    elif choice == "gif":
-        data = await fetch_json(NEKOS_API)
-        return data["url"]
-
-    # ===== VIDEO =====
-    else:
-        return random.choice(VIDEOS)
+# ===== GIF =====
+async def get_gif():
+    data = await fetch_json(NEKOS_API)
+    return data["url"]
 
 # ===== AUTO TASK =====
 async def auto_task(channel):
-    global auto_send
+    global auto_mode
 
-    while auto_send:
+    while auto_mode:
         try:
-            content = await get_content()
+            embed = discord.Embed(title=f"🔞 Auto {auto_mode.upper()}")
 
-            embed = discord.Embed(title="🔞 Auto Anime 18+")
-            
-            if content.endswith(".mp4"):
-                await channel.send(content)
-            else:
-                embed.set_image(url=content)
-                await channel.send(embed=embed)
+            # ===== IMG =====
+            if auto_mode == "img":
+                url = await get_image()
+                embed.set_image(url=url)
 
+            # ===== GIF =====
+            elif auto_mode == "gif":
+                url = await get_gif()
+                embed.set_image(url=url)
+
+            # ===== MIX =====
+            elif auto_mode == "mix":
+                if random.choice([True, False]):
+                    url = await get_image()
+                else:
+                    url = await get_gif()
+
+                embed.set_image(url=url)
+
+            await channel.send(embed=embed)
             await asyncio.sleep(DELAY)
 
         except Exception as e:
@@ -87,7 +84,7 @@ async def on_ready():
 # ===== MESSAGE =====
 @client.event
 async def on_message(message):
-    global auto_send
+    global auto_mode
 
     if message.author.bot:
         return
@@ -107,32 +104,40 @@ async def on_message(message):
 
     msg = message.content.lower()
 
-    # ===== RANDOM CONTENT =====
-    if msg == "18+":
-        content = await get_content()
-
-        embed = discord.Embed(title="🔞 Anime 18+")
-
-        if content.endswith(".mp4"):
-            await message.channel.send(content)
-        else:
-            embed.set_image(url=content)
-            await message.channel.send(embed=embed)
-
-    # ===== AUTO ON =====
-    elif msg == "auto":
-        if auto_send:
-            await message.channel.send("⚠️ Đang chạy rồi!")
+    # ===== AUTO IMG =====
+    if msg == "auto img":
+        if auto_mode:
+            await message.channel.send("⚠️ Auto đang chạy rồi!")
             return
 
-        auto_send = True
-        await message.channel.send("▶️ Auto 18+ đã bật")
+        auto_mode = "img"
+        await message.channel.send("▶️ Auto ảnh đã bật")
         client.loop.create_task(auto_task(message.channel))
 
-    # ===== AUTO OFF =====
+    # ===== AUTO GIF =====
+    elif msg == "auto gif":
+        if auto_mode:
+            await message.channel.send("⚠️ Auto đang chạy rồi!")
+            return
+
+        auto_mode = "gif"
+        await message.channel.send("▶️ Auto gif đã bật")
+        client.loop.create_task(auto_task(message.channel))
+
+    # ===== AUTO MIX =====
+    elif msg == "auto mix":
+        if auto_mode:
+            await message.channel.send("⚠️ Auto đang chạy rồi!")
+            return
+
+        auto_mode = "mix"
+        await message.channel.send("▶️ Auto mix đã bật")
+        client.loop.create_task(auto_task(message.channel))
+
+    # ===== STOP =====
     elif msg == "stop":
-        auto_send = False
-        await message.channel.send("⏹️ Auto đã dừng")
+        auto_mode = None
+        await message.channel.send("⏹️ Đã dừng auto")
 
 # ===== RUN =====
 if TOKEN is None:
