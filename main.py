@@ -17,13 +17,21 @@ DELAY = 1.5
 
 auto_running = False
 nsfw_mode = False
-last_images = {}  # message_id : image_url
+last_images = {}
+
+# ===== CHARACTER LIST =====
+CHARACTERS = {
+    "roxy": "roxy_migurdia",
+    "sylphy": "sylphiette",
+    "rem": "rem_(re:zero)",
+    "emilia": "emilia_(re:zero)",
+    "zero_two": "zero_two_(darling_in_the_franxx)",
+    "mikasa": "mikasa_ackerman"
+}
 
 # ===== CATEGORY =====
-SFW_CATEGORIES = ["waifu", "neko", "smile", "happy"]
-NSFW_CATEGORIES = ["waifu", "neko", "trap", "blowjob", "boobs"]
-
-GIF_API = "https://nekos.life/api/v2/img/Random_hentai_gif"
+SFW_CATEGORIES = ["waifu", "neko", "smile"]
+NSFW_CATEGORIES = ["waifu", "neko", "trap", "boobs"]
 
 # ===== FETCH =====
 async def fetch_json(url):
@@ -33,6 +41,19 @@ async def fetch_json(url):
                 return await res.json()
     except:
         return None
+
+# ===== GET CHARACTER =====
+async def get_character(tag):
+    rating = "rating:safe" if not nsfw_mode else "rating:explicit"
+    url = f"https://danbooru.donmai.us/posts.json?tags={tag}+{rating}&limit=20"
+
+    data = await fetch_json(url)
+
+    if data:
+        post = random.choice(data)
+        return post.get("file_url")
+
+    return None
 
 # ===== GET RANDOM =====
 async def get_random():
@@ -50,13 +71,6 @@ async def get_random():
 
     return None, None
 
-# ===== GET GIF =====
-async def get_gif():
-    data = await fetch_json(GIF_API)
-    if data and "url" in data:
-        return data["url"]
-    return None
-
 # ===== FIND ANIME =====
 async def find_anime(image_url):
     url = f"https://api.trace.moe/search?url={image_url}"
@@ -68,29 +82,39 @@ async def find_anime(image_url):
 
     return None, None
 
-# ===== SEND =====
+# ===== SEND EMBED =====
 async def send_embed(channel, url, title):
     embed = discord.Embed(title=title)
     embed.set_image(url=url)
 
     msg = await channel.send(embed=embed)
 
-    # lưu lại ảnh để dùng reaction
     last_images[msg.id] = url
 
-    # thêm reaction
     await msg.add_reaction("❤️")
     await msg.add_reaction("🔍")
 
 # ===== AUTO =====
-async def auto_task(channel):
+async def auto_task(channel, mode):
     global auto_running
 
     while auto_running:
-        url, cat = await get_random()
+        url = None
+
+        if mode in CHARACTERS:
+            url = await get_character(CHARACTERS[mode])
+
+        elif mode in SFW_CATEGORIES + NSFW_CATEGORIES:
+            api = f"https://api.waifu.pics/{'nsfw' if nsfw_mode else 'sfw'}/{mode}"
+            data = await fetch_json(api)
+            if data:
+                url = data.get("url")
+
+        elif mode == "random":
+            url, _ = await get_random()
 
         if url:
-            await send_embed(channel, url, f"{'🔞' if nsfw_mode else '✨'} {cat}")
+            await send_embed(channel, url, f"{mode.upper()}")
 
         await asyncio.sleep(DELAY)
 
@@ -115,15 +139,28 @@ async def on_message(message):
     # ===== HELP =====
     if msg == "help":
         embed = discord.Embed(title="📜 Commands")
-
-        embed.add_field(name="auto", value="Spam random", inline=False)
-        embed.add_field(name="stop", value="Dừng", inline=False)
+        embed.add_field(name="auto <name>", value="Auto theo category/character", inline=False)
+        embed.add_field(name="stop", value="Dừng auto", inline=False)
         embed.add_field(name="nsfw on/off", value="Bật/tắt 18+", inline=False)
-        embed.add_field(name="gif", value="GIF anime", inline=False)
+        embed.add_field(name="list", value="Xem danh sách", inline=False)
+        embed.add_field(name="find", value="Tìm anime", inline=False)
+        await message.channel.send(embed=embed)
 
-        embed.add_field(name="category", value=", ".join(SFW_CATEGORIES + NSFW_CATEGORIES), inline=False)
+    # ===== LIST =====
+    elif msg == "list":
+        embed = discord.Embed(title="📂 Danh sách")
 
-        embed.set_footer(text="❤️ = lưu | 🔍 = tìm anime")
+        embed.add_field(
+            name="👤 Characters",
+            value=", ".join(CHARACTERS.keys()),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🎲 Categories",
+            value=", ".join(SFW_CATEGORIES + NSFW_CATEGORIES),
+            inline=False
+        )
 
         await message.channel.send(embed=embed)
 
@@ -137,24 +174,44 @@ async def on_message(message):
         await message.channel.send("✨ NSFW OFF")
 
     # ===== AUTO =====
-    elif msg == "auto":
+    elif msg.startswith("auto "):
         if auto_running:
             await message.channel.send("⚠️ Đang chạy!")
             return
 
+        mode = msg.split(" ")[1]
+
         auto_running = True
-        await message.channel.send("▶️ Auto ON")
-        client.loop.create_task(auto_task(message.channel))
+        await message.channel.send(f"▶️ Auto {mode} ON")
+
+        client.loop.create_task(auto_task(message.channel, mode))
 
     elif msg == "stop":
         auto_running = False
         await message.channel.send("⏹️ STOP")
 
-    # ===== GIF =====
-    elif msg == "gif":
-        url = await get_gif()
+    # ===== FIND =====
+    elif msg == "find":
+        if not last_images:
+            await message.channel.send("❌ Chưa có ảnh")
+            return
+
+        url = list(last_images.values())[-1]
+
+        await message.channel.send("🔍 Đang tìm...")
+
+        anime, sim = await find_anime(url)
+
+        if anime:
+            await message.channel.send(f"🎬 {anime}\n📊 {sim}%")
+        else:
+            await message.channel.send("❌ Không tìm thấy")
+
+    # ===== CHARACTER QUICK =====
+    elif msg in CHARACTERS:
+        url = await get_character(CHARACTERS[msg])
         if url:
-            await send_embed(message.channel, url, "GIF")
+            await send_embed(message.channel, url, msg)
 
 # ===== REACTION =====
 @client.event
@@ -169,14 +226,12 @@ async def on_reaction_add(reaction, user):
 
     url = last_images[msg_id]
 
-    # ❤️ lưu ảnh
     if str(reaction.emoji) == "❤️":
         try:
             await user.send(f"💾 Saved:\n{url}")
         except:
             pass
 
-    # 🔍 tìm anime
     elif str(reaction.emoji) == "🔍":
         channel = reaction.message.channel
         await channel.send("🔍 Đang tìm...")
