@@ -18,9 +18,13 @@ DELAY = 1.5
 auto_running = False
 nsfw_mode = False
 
-last_images = {}   # message_id : url
-gallery = {}       # user_id : [url]
-favorites = {}     # user_id : [url]
+last_images = {}
+gallery = {}
+favorites = {}
+
+# chống trùng
+recent_images = []
+MAX_CACHE = 20
 
 # ===== CHARACTER =====
 CHARACTERS = {
@@ -39,39 +43,61 @@ NSFW_CATEGORIES = ["waifu", "neko", "trap", "boobs"]
 async def fetch_json(url):
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as res:
+            async with session.get(url, timeout=10) as res:
                 return await res.json()
-    except:
+    except Exception as e:
+        print("Fetch error:", e)
         return None
 
 # ===== CHARACTER =====
 async def get_character(tag):
     rating = "rating:safe" if not nsfw_mode else "rating:explicit"
-    url = f"https://danbooru.donmai.us/posts.json?tags={tag}+{rating}&limit=20"
 
-    data = await fetch_json(url)
+    for _ in range(5):
+        url = f"https://danbooru.donmai.us/posts.json?tags={tag}+{rating}&limit=20"
+        data = await fetch_json(url)
 
-    if data:
-        post = random.choice(data)
-        return post.get("file_url")
+        if data:
+            post = random.choice(data)
+            file_url = post.get("file_url")
+
+            if file_url and file_url not in recent_images:
+                recent_images.append(file_url)
+                if len(recent_images) > MAX_CACHE:
+                    recent_images.pop(0)
+                return file_url
 
     return None
 
 # ===== RANDOM =====
 async def get_random():
-    if nsfw_mode:
-        cat = random.choice(NSFW_CATEGORIES)
-        api = f"https://api.waifu.pics/nsfw/{cat}"
-    else:
-        cat = random.choice(SFW_CATEGORIES)
-        api = f"https://api.waifu.pics/sfw/{cat}"
+    for _ in range(5):
+        try:
+            if nsfw_mode:
+                api = random.choice([
+                    "https://api.waifu.pics/nsfw/waifu",
+                    "https://api.waifu.pics/nsfw/neko"
+                ])
+            else:
+                api = random.choice([
+                    "https://api.waifu.pics/sfw/waifu",
+                    "https://api.waifu.pics/sfw/neko"
+                ])
 
-    data = await fetch_json(api)
+            data = await fetch_json(api)
 
-    if data:
-        return data.get("url"), cat
+            if data and "url" in data:
+                url = data["url"]
 
-    return None, None
+                if url not in recent_images:
+                    recent_images.append(url)
+                    if len(recent_images) > MAX_CACHE:
+                        recent_images.pop(0)
+                    return url
+        except:
+            pass
+
+    return None
 
 # ===== FIND =====
 async def find_anime(url):
@@ -86,6 +112,9 @@ async def find_anime(url):
 
 # ===== SEND =====
 async def send_embed(channel, url, title):
+    if not url:
+        return
+
     embed = discord.Embed(title=title)
     embed.set_image(url=url)
 
@@ -101,24 +130,39 @@ async def auto_task(channel, mode):
     global auto_running
 
     while auto_running:
-        url = None
+        try:
+            url = None
 
-        if mode in CHARACTERS:
-            url = await get_character(CHARACTERS[mode])
+            # CHARACTER
+            if mode in CHARACTERS:
+                url = await get_character(CHARACTERS[mode])
 
-        elif mode in SFW_CATEGORIES + NSFW_CATEGORIES:
-            api = f"https://api.waifu.pics/{'nsfw' if nsfw_mode else 'sfw'}/{mode}"
-            data = await fetch_json(api)
-            if data:
-                url = data.get("url")
+            # CATEGORY
+            elif mode in SFW_CATEGORIES + NSFW_CATEGORIES:
+                api = f"https://api.waifu.pics/{'nsfw' if nsfw_mode else 'sfw'}/{mode}"
+                data = await fetch_json(api)
+                if data:
+                    url = data.get("url")
 
-        elif mode == "random":
-            url, _ = await get_random()
+            # RANDOM
+            elif mode == "random":
+                url = await get_random()
 
-        if url:
-            await send_embed(channel, url, mode)
+            # fallback
+            if not url:
+                url = await get_random()
 
-        await asyncio.sleep(DELAY)
+            if not url:
+                await asyncio.sleep(1)
+                continue
+
+            await send_embed(channel, url, f"{mode.upper()}")
+
+            await asyncio.sleep(DELAY)
+
+        except Exception as e:
+            print("Auto error:", e)
+            await asyncio.sleep(2)
 
 # ===== READY =====
 @client.event
@@ -136,15 +180,31 @@ async def on_message(message):
     if message.channel.id != ALLOWED_CHANNEL_ID:
         return
 
-    user_id = message.author.id
     msg = message.content.lower()
+    user_id = message.author.id
+
+    # ===== HELP =====
+    if msg == "help":
+        embed = discord.Embed(title="📜 Commands")
+        embed.add_field(name="auto <name>", value="auto roxy / auto neko / auto random", inline=False)
+        embed.add_field(name="stop", value="dừng auto", inline=False)
+        embed.add_field(name="nsfw on/off", value="bật/tắt 18+", inline=False)
+        embed.add_field(name="list", value="xem danh sách", inline=False)
+        embed.add_field(name="gallery", value="ảnh đã lưu", inline=False)
+        embed.add_field(name="fav", value="ảnh yêu thích", inline=False)
+        embed.add_field(name="ping", value="check bot", inline=False)
+        await message.channel.send(embed=embed)
+
+    # ===== PING =====
+    elif msg == "ping":
+        await message.channel.send(f"🏓 {round(client.latency*1000)}ms")
 
     # ===== LIST =====
-    if msg == "list":
-        embed = discord.Embed(title="📂 Danh sách")
-        embed.add_field(name="👤 Characters", value=", ".join(CHARACTERS.keys()), inline=False)
-        embed.add_field(name="🎲 Categories", value=", ".join(SFW_CATEGORIES + NSFW_CATEGORIES), inline=False)
-        await message.channel.send(embed=embed)
+    elif msg == "list":
+        await message.channel.send(
+            f"👤 Characters: {', '.join(CHARACTERS.keys())}\n"
+            f"🎲 Categories: {', '.join(SFW_CATEGORIES + NSFW_CATEGORIES)}"
+        )
 
     # ===== NSFW =====
     elif msg == "nsfw on":
@@ -175,13 +235,15 @@ async def on_message(message):
     # ===== CHARACTER QUICK =====
     elif msg in CHARACTERS:
         url = await get_character(CHARACTERS[msg])
-        if url:
-            await send_embed(message.channel, url, msg)
+        if not url:
+            url = await get_random()
+
+        await send_embed(message.channel, url, msg)
 
     # ===== GALLERY =====
     elif msg == "gallery":
-        if user_id not in gallery or not gallery[user_id]:
-            await message.channel.send("📂 Bạn chưa lưu ảnh nào")
+        if user_id not in gallery:
+            await message.channel.send("📂 Chưa có ảnh")
             return
 
         for url in gallery[user_id][-5:]:
@@ -189,8 +251,8 @@ async def on_message(message):
 
     # ===== FAVORITE =====
     elif msg == "fav":
-        if user_id not in favorites or not favorites[user_id]:
-            await message.channel.send("⭐ Bạn chưa có favorite")
+        if user_id not in favorites:
+            await message.channel.send("⭐ Chưa có favorite")
             return
 
         for url in favorites[user_id][-5:]:
@@ -210,27 +272,12 @@ async def on_reaction_add(reaction, user):
     url = last_images[msg_id]
     user_id = user.id
 
-    # ❤️ SAVE + FAVORITE
     if str(reaction.emoji) == "❤️":
         gallery.setdefault(user_id, []).append(url)
         favorites.setdefault(user_id, []).append(url)
 
-        try:
-            await user.send("💾 Đã lưu & thêm vào favorite!")
-        except:
-            pass
-
-    # 🔍 FIND
     elif str(reaction.emoji) == "🔍":
-        channel = reaction.message.channel
-        await channel.send("🔍 Đang tìm...")
-
-        anime, sim = await find_anime(url)
-
-        if anime:
-            await channel.send(f"🎬 {anime}\n📊 {sim}%")
-        else:
-            await channel.send("❌ Không tìm thấy")
+        await reaction.message.channel.send("🔍 Tìm anime có thể không chính xác!")
 
 # ===== RUN =====
 if TOKEN:
