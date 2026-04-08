@@ -199,7 +199,7 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    if message.channel.id != ALLOWED_CHANNEL_ID:
+    if message.channel.id not in ALLOWED_CHANNEL_ID:
         return
 
     msg = message.content.lower()
